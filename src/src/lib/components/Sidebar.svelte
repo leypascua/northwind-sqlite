@@ -102,7 +102,7 @@
 <div class="sidebar" style="width: {width}px">
   <div class="title">
     <i class="fas fa-database"></i>
-    NorthwindSqlite
+    Northwind
   </div>
 
   <div class="content">

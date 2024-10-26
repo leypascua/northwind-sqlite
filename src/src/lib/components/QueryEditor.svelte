@@ -81,6 +81,10 @@
             color: '#858585',
             border: 'none'
           },
+          '.cm-activeLineGutter' : {
+            backgroundColor: '#1e1e1e',
+            color: '#eeeeee'
+          }, 
           '.cm-lineNumbers': {
             color: '#858585'
           },
@@ -95,34 +99,33 @@
           '.cm-line': {
             padding: '0 4px'
           },
-          '.cm-keyword': { color: '#0078d4' },
-          '.cm-operator': { color: '#d4d4d4' },
-          '.cm-number': { color: '#b5cea8' },
-          '.cm-string': { color: '#ce9178' },
-          '.cm-comment': { color: '#6a9955' },
-          '.cm-function': { color: '#dcdcaa' },
-          '.cm-variable': { color: '#9cdcfe' },
-          '.cm-punctuation': { color: '#d4d4d4' },
+          // VS Code-like syntax highlighting colors
+          '.cm-keyword': { color: '#569cd6' },         // blue for keywords
+          '.cm-operator': { color: '#d4d4d4' },        // white for operators
+          '.cm-number': { color: '#b5cea8' },          // light green for numbers
+          '.cm-string': { color: '#ce9178' },          // orange for strings
+          '.cm-comment': { color: '#6a9955' },         // green for comments
+          '.cm-function': { color: '#dcdcaa' },        // yellow for functions
+          '.cm-variable': { color: '#9cdcfe' },        // light blue for variables
+          '.cm-punctuation': { color: '#d4d4d4' },     // white for punctuation
           '.cm-cursor': { 
             borderLeftColor: '#fff',
             borderLeftWidth: '2px'
           },
           '.cm-activeLine': { 
-            backgroundColor: '#282828'
+            backgroundColor: '#1e1e1e'
           },
-          '.cm-selectionBackground': {
-            backgroundColor: '#264f78'
+          "&.cm-focused .cm-selectionBackground, ::selection": {
+            backgroundColor: '#5b5b5b'
           },
-          '&.cm-focused .cm-selectionBackground': {
-            backgroundColor: '#264f78'
-          },
+          
           // SQL specific tokens
-          '.cm-atom': { color: '#0078d4' },
-          '.cm-builtin': { color: '#dcdcaa' },
-          '.cm-tableName': { color: '#4ec9b0' },
-          '.cm-columnName': { color: '#9cdcfe' },
+          '.cm-atom': { color: '#569cd6' },           // blue for atoms/constants
+          '.cm-builtin': { color: '#dcdcaa' },        // yellow for built-in functions
+          '.cm-tableName': { color: '#4ec9b0' },      // teal for table names
+          '.cm-columnName': { color: '#9cdcfe' },     // light blue for column names
           '.cm-operator.cm-compareOperator': { color: '#d4d4d4' },
-          '.cm-operator.cm-logicOperator': { color: '#0078d4' },
+          '.cm-operator.cm-logicOperator': { color: '#569cd6' },
           '.cm-star': { color: '#d4d4d4' },
           // Completion tooltip styles
           '.cm-tooltip': {
@@ -158,7 +161,7 @@
           },
           '.cm-completionIcon': {
             marginRight: '8px',
-            '&[class*="keyword"]': { color: '#0078d4' },
+            '&[class*="keyword"]': { color: '#569cd6' },
             '&[class*="class"]': { color: '#4ec9b0' },
             '&[class*="property"]': { color: '#9cdcfe' },
             '&[class*="method"]': { color: '#dcdcaa' },
