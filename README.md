@@ -1,3 +1,42 @@
-This simple single-page application (SPA) uses SQL.js to restore the [Northwind database schema and data](https://gist.githubusercontent.com/leypascua/1472194945dd89a60e51e737aebceebc/raw/cf62fe58fe59c46bc6cdd27138edcc3d2f395ba4/northwind.sqlite.sql) as an Sqlite database that can be queried in a web browser. 
+# Northwind Sqlite
 
-This web application completely runs on the browser without any server, uses the latest SvelteKit version written in TypeScript, @sveltejs/adapter-static, Tailwind CSS and shadcn-svelte.
+This code was written 100% by Stackblitz's [bolt.new](https://bolt.new).
+
+Stack: Svelte, Typescript, Vite, sql.js.
+
+## Getting Started
+
+### Installation
+
+```bash
+npm install
+```
+
+### Development
+
+To start the development server:
+
+```bash
+npm run dev
+```
+
+The application will be available at the provided local server URL.
+
+### Production Build
+
+To create a production build:
+
+```bash
+npm run build
+```
+
+The built files will be available in the `dist` directory.
+
+## Features
+
+- In-browser SQLite database using sql.js
+- Full Northwind database schema
+- SQL query editor with syntax highlighting
+- Auto-completion for SQL keywords, table names, and columns
+- Results displayed in a resizable grid
+- VS Code-inspired dark theme
