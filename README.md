@@ -1,6 +1,6 @@
 # Northwind Sqlite
 
-This code was written 100% by Stackblitz's [bolt.new](https://bolt.new).
+100% of this code was written Stackblitz's [bolt.new](https://bolt.new) from leypascua's prompts.
 
 Stack: Svelte, Typescript, Vite, sql.js.
 
