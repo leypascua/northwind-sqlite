@@ -12,11 +12,19 @@
   let startWidth: number;
   let schema: DatabaseSchema | null = null;
   let expandedTables = new Set<string>();
+  let isCollapsed = false;
   let contextMenu = {
     visible: false,
     x: 0,
     y: 0,
     tableName: ''
+  };
+  let tooltip = {
+    visible: false,
+    x: 0,
+    y: 0,
+    content: '',
+    timer: null as any
   };
 
   async function init() {
@@ -30,6 +38,15 @@
 
   init();
 
+  function toggleSidebar() {
+    isCollapsed = !isCollapsed;
+    if (isCollapsed) {
+      width = 50;
+    } else {
+      width = 300;
+    }
+  }
+
   function toggleTable(tableName: string) {
     if (expandedTables.has(tableName)) {
       expandedTables.delete(tableName);
@@ -39,10 +56,22 @@
     expandedTables = new Set(expandedTables);
   }
 
-  function getColumnMetadata(column: { type: string; notnull: number }) {
+  function getColumnMetadata(column: { type: string; notnull: number; fk?: { table: string; column: string } }) {
     const constraints = [];
     if (column.notnull) constraints.push('NOT NULL');
-    return `(${column.type}${constraints.length ? ', ' + constraints.join(', ') : ''})`;
+    
+    let tooltip = `Type: ${column.type}`;
+    if (constraints.length) {
+      tooltip += `\nConstraints: ${constraints.join(', ')}`;
+    }
+    if (column.fk) {
+      tooltip += `\nForeign Key: References ${column.fk.table}(${column.fk.column})`;
+    }
+    return tooltip;
+  }
+
+  function getColumnTypeDisplay(column: { type: string }) {
+    return `(${column.type})`;
   }
 
   function handleContextMenu(event: MouseEvent, tableName: string) {
@@ -70,12 +99,35 @@
     }
   }
 
+  function showTooltip(event: MouseEvent, column: any) {
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    
+    tooltip.timer = setTimeout(() => {
+      tooltip = {
+        ...tooltip,
+        visible: true,
+        x: rect.right + 10,
+        y: rect.top,
+        content: getColumnMetadata(column)
+      };
+    }, 1000);
+  }
+
+  function hideTooltip() {
+    if (tooltip.timer) {
+      clearTimeout(tooltip.timer);
+    }
+    tooltip.visible = false;
+  }
+
   function startResize(event: MouseEvent) {
+    if (isCollapsed) return;
+    
     isResizing = true;
     startX = event.pageX;
     startWidth = width;
-    event.preventDefault();
-
+    
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', stopResize);
     document.body.style.cursor = 'col-resize';
@@ -99,14 +151,31 @@
 
 <svelte:window on:click={handleGlobalClick} />
 
-<div class="sidebar" style="width: {width}px">
-  <div class="title">
-    <i class="fas fa-database"></i>
-    Northwind
+<div class="sidebar" style="width: {width}px" class:collapsed={isCollapsed}>
+  <div class="title" class:collapsed={isCollapsed}>
+    {#if isCollapsed}
+      <button 
+        class="toggle-btn collapsed"
+        on:click={toggleSidebar}
+        title="Expand sidebar"
+      >
+        <i class="fas fa-database"></i>
+      </button>
+    {:else}
+      <i class="fas fa-database database-icon"></i>
+      <span class="title-text">Northwind</span>
+      <button 
+        class="toggle-btn"
+        on:click={toggleSidebar}
+        title="Collapse sidebar"
+      >
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    {/if}
   </div>
 
-  <div class="content">
-    {#if schema}
+  <div class="content" class:collapsed={isCollapsed}>
+    {#if schema && !isCollapsed}
       <div class="tree-view">
         {#each schema.tables as table}
           <div class="tree-item">
@@ -124,15 +193,21 @@
             {#if expandedTables.has(table.name)}
               <div class="tree-children">
                 {#each table.columns as column}
-                  <div class="tree-node column">
+                  <div 
+                    class="tree-node column"
+                    on:mouseenter={(e) => showTooltip(e, column)}
+                    on:mouseleave={hideTooltip}
+                  >
                     {#if column.pk}
                       <i class="fas fa-key icon key-icon"></i>
+                    {:else if column.fk}
+                      <i class="fas fa-key icon fk-icon"></i>
                     {:else}
                       <i class="fas fa-columns icon column-icon"></i>
                     {/if}
                     <span class="label" class:required={column.notnull}>
                       {column.name}
-                      <span class="metadata">{getColumnMetadata(column)}</span>
+                      <span class="metadata">{getColumnTypeDisplay(column)}</span>
                     </span>
                   </div>
                 {/each}
@@ -141,8 +216,6 @@
           </div>
         {/each}
       </div>
-    {:else}
-      <div class="loading">Loading schema...</div>
     {/if}
   </div>
 
@@ -150,6 +223,7 @@
     class="resize-handle"
     on:mousedown={startResize}
     class:resizing={isResizing}
+    class:hidden={isCollapsed}
   ></div>
 </div>
 
@@ -165,18 +239,33 @@
   </div>
 {/if}
 
+{#if tooltip.visible}
+  <div 
+    class="tooltip"
+    style="left: {tooltip.x}px; top: {tooltip.y}px"
+  >
+    {#each tooltip.content.split('\n') as line}
+      <div class="tooltip-line">{line}</div>
+    {/each}
+  </div>
+{/if}
+
 <style>
   .sidebar {
     background: var(--vscode-sidebar-background);
     height: 100vh;
-    min-width: 200px;
+    min-width: 50px;
     max-width: 600px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
     position: relative;
     border-right: 1px solid var(--vscode-border);
     display: flex;
     flex-direction: column;
+    transition: width 0.2s ease-in-out;
+  }
+
+  .sidebar.collapsed {
+    width: 50px !important;
   }
 
   .title {
@@ -190,11 +279,60 @@
     text-transform: uppercase;
     background: var(--vscode-sidebar-background);
     height: 35px;
+    position: relative;
+  }
+
+  .title.collapsed {
+    padding: 0.5rem;
+    justify-content: center;
+  }
+
+  .database-icon {
+    flex-shrink: 0;
+  }
+
+  .title-text {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .toggle-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    width: 24px;
+    height: 24px;
+  }
+
+  .toggle-btn:hover {
+    background: #424242;
+    color: var(--vscode-foreground);
+  }
+
+  .toggle-btn.collapsed {
+    width: 100%;
+    height: 100%;
+    color: #969696;
   }
 
   .content {
     padding: 0.25rem;
     flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .content.collapsed {
+    visibility: hidden;
   }
 
   .tree-view {
@@ -256,6 +394,10 @@
 
   .key-icon {
     color: #dcdcaa;
+  }
+
+  .fk-icon {
+    color: #808080;
   }
 
   .column-icon {
@@ -321,6 +463,10 @@
     background: var(--vscode-button-background);
   }
 
+  .resize-handle.hidden {
+    display: none;
+  }
+
   .context-menu {
     position: fixed;
     background: #252526;
@@ -356,5 +502,28 @@
     font-size: 0.875rem;
     width: 16px;
     text-align: center;
+  }
+
+  .tooltip {
+    position: fixed;
+    background: #252526;
+    border: 1px solid var(--vscode-border);
+    border-radius: 2px;
+    padding: 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--vscode-foreground);
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    max-width: 300px;
+  }
+
+  .tooltip-line {
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+
+  .tooltip-line + .tooltip-line {
+    margin-top: 0.25rem;
   }
 </style>

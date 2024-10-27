@@ -16,6 +16,7 @@
 
   const MIN_COLUMN_WIDTH = 100;
   const MAX_COLUMN_WIDTH = 800;
+  const DATETIME_WIDTH = 120; // Fixed width for datetime columns
   const PADDING = 32;
   const CHAR_WIDTH = 8;
 
@@ -31,6 +32,19 @@
     return 'string';
   }
 
+  function isDateTimeColumn(column: string): boolean {
+    if (!results.length) return false;
+    const value = results[0][column];
+    if (!value) return false;
+    
+    // Check if the value matches date format or column name contains date indicators
+    return (
+      column.toLowerCase().includes('date') ||
+      column.toLowerCase().includes('time') ||
+      (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value))
+    );
+  }
+
   function calculateColumnWidths() {
     if (!columns.length || !results.length || hasCalculatedInitialWidths) return;
 
@@ -38,7 +52,13 @@
     if (!tableWrapper) return;
     const availableWidth = Math.max(800, tableWrapper.clientWidth - PADDING);
 
-    const columnStats = columns.reduce((stats, column) => {
+    // First, handle datetime columns with fixed width
+    const dateTimeColumns = columns.filter(isDateTimeColumn);
+    const reservedWidth = dateTimeColumns.length * DATETIME_WIDTH;
+    const remainingWidth = availableWidth - reservedWidth;
+
+    const nonDateTimeColumns = columns.filter(col => !isDateTimeColumn(col));
+    const columnStats = nonDateTimeColumns.reduce((stats, column) => {
       const values = results.map(row => row[column]);
       const lengths = values.map(v => (v?.toString() || '').length);
       const maxLength = Math.max(column.length, ...lengths);
@@ -59,13 +79,19 @@
       (sum, stats) => sum + (stats.avgLength * stats.weight), 0
     );
 
-    columns.forEach(column => {
+    // Set datetime columns to fixed width
+    dateTimeColumns.forEach(column => {
+      columnWidths[column] = DATETIME_WIDTH;
+    });
+
+    // Distribute remaining width among non-datetime columns
+    nonDateTimeColumns.forEach(column => {
       if (columnWidths[column]) return;
 
       const stats = columnStats[column];
       const proportion = (stats.avgLength * stats.weight) / totalWeightedLength;
       
-      let width = Math.floor(availableWidth * proportion);
+      let width = Math.floor(remainingWidth * proportion);
       
       if (stats.type === 'number') {
         width = Math.min(width, stats.maxLength * CHAR_WIDTH + PADDING);

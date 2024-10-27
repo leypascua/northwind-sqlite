@@ -1,11 +1,16 @@
 import type { Database } from 'sql.js';
-import { initializeApp, getDatabase } from './loader';
+import { createSqliteDb } from './loader';
+import { schema } from './northwindSchema';
 
 export interface Column {
   name: string;
   type: string;
   notnull: number;
   pk: number;
+  fk?: {
+    table: string;
+    column: string;
+  };
 }
 
 export interface Table {
@@ -18,51 +23,95 @@ export interface DatabaseSchema {
   tables: Table[];
 }
 
+let db: Database | null = null;
+
+function getDatabase(): Database {
+  return db;
+}
+
 export async function initDatabase(): Promise<void> {
   try {
-    await initializeApp();
+    db = await createSqliteDb();
+    db.run(schema);
     console.log('Database initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize database:', error);
+    console.error(
+      'database.initDatabase: Failed to initialize database: ',
+      error
+    );
     throw error;
+  }
+}
+
+function getForeignKeys(tableName: string): { [key: string]: { table: string; column: string } } {
+  const db = getDatabase();
+  const fkQuery = `
+    SELECT 
+      p."from" as from_col,
+      p."table" as to_table,
+      p."to" as to_col
+    FROM pragma_foreign_key_list('${tableName}') p
+  `;
+  
+  try {
+    const result = db.exec(fkQuery)[0];
+    if (!result) return {};
+
+    const fkMap: { [key: string]: { table: string; column: string } } = {};
+    result.values.forEach(row => {
+      fkMap[row[0] as string] = {
+        table: row[1] as string,
+        column: row[2] as string
+      };
+    });
+    return fkMap;
+  } catch (error) {
+    console.error('Error getting foreign keys:', error);
+    return {};
   }
 }
 
 export function getDatabaseSchema(): DatabaseSchema {
   const db = getDatabase();
-  const tables = db.exec(`
+  const tables = db
+    .exec(
+      `
     SELECT name 
     FROM sqlite_master 
     WHERE type='table' 
     AND name NOT LIKE 'sqlite_%'
     ORDER BY name
-  `)[0].values.map(row => row[0] as string);
+  `
+    )[0]
+    .values.map((row) => row[0] as string);
 
   return {
     name: 'Northwind',
-    tables: tables.map(tableName => {
+    tables: tables.map((tableName) => {
       const tableInfo = db.exec(`PRAGMA table_info([${tableName}])`)[0];
-      const columns = tableInfo.values.map((row, index) => ({
+      const foreignKeys = getForeignKeys(tableName);
+
+      const columns = tableInfo.values.map((row) => ({
         name: row[1] as string,
         type: row[2] as string,
         notnull: row[3] as number,
-        pk: row[5] as number
+        pk: row[5] as number,
+        fk: foreignKeys[row[1] as string]
       }));
 
       return {
         name: tableName,
-        columns
+        columns,
       };
-    })
+    }),
   };
 }
 
 function findErrorLine(sql: string, errorMessage: string): number | null {
-  // Common SQLite error patterns
   const patterns = [
     /near "([^"]+)": syntax error/,
     /no such table: ([^\s]+)/,
-    /no such column: ([^\s]+)/
+    /no such column: ([^\s]+)/,
   ];
 
   for (const pattern of patterns) {
@@ -81,9 +130,9 @@ function findErrorLine(sql: string, errorMessage: string): number | null {
   return null;
 }
 
-export function executeQuery(sql: string): { 
-  results: any[]; 
-  columns: string[]; 
+export function executeQuery(sql: string): {
+  results: any[];
+  columns: string[];
   error: string | null;
   errorLine?: number | null;
   isModificationQuery: boolean;
@@ -92,20 +141,20 @@ export function executeQuery(sql: string): {
   try {
     const db = getDatabase();
     const isSelect = sql.trim().toLowerCase().startsWith('select');
-    
+
     if (isSelect) {
       const result = db.exec(sql)[0];
-      
+
       if (!result) {
         return {
           results: [],
           columns: [],
           error: null,
-          isModificationQuery: false
+          isModificationQuery: false,
         };
       }
 
-      const rows = result.values.map(row => {
+      const rows = result.values.map((row) => {
         const obj: any = {};
         result.columns.forEach((col, i) => {
           obj[col] = row[i];
@@ -117,17 +166,16 @@ export function executeQuery(sql: string): {
         results: rows,
         columns: result.columns,
         error: null,
-        isModificationQuery: false
+        isModificationQuery: false,
       };
     } else {
-      // For INSERT, UPDATE, DELETE queries
       db.run(sql);
       return {
         results: [],
         columns: [],
         error: null,
         isModificationQuery: true,
-        affectedRows: db.getRowsModified()
+        affectedRows: db.getRowsModified(),
       };
     }
   } catch (error) {
@@ -138,7 +186,7 @@ export function executeQuery(sql: string): {
       columns: [],
       error: errorMessage,
       errorLine,
-      isModificationQuery: false
+      isModificationQuery: false,
     };
   }
 }
