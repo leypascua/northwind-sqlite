@@ -8,8 +8,10 @@
 
   let width = 300;
   let isResizing = false;
+  let isTouchResizing = false;
   let startX: number;
   let startWidth: number;
+  let touchTimer: number | null = null;
   let schema: DatabaseSchema | null = null;
   let expandedTables = new Set<string>();
   let isCollapsed = false;
@@ -121,6 +123,52 @@
     tooltip.visible = false;
   }
 
+  function handleTouchStart(event: TouchEvent) {
+    if (isCollapsed) return;
+    
+    const touch = event.touches[0];
+    touchTimer = window.setTimeout(() => {
+      isTouchResizing = true;
+      startX = touch.pageX;
+      startWidth = width;
+      
+      const handle = event.target as HTMLElement;
+      handle.classList.add('touch-active');
+    }, 1000);
+
+    const handle = event.target as HTMLElement;
+    handle.classList.add('touch-highlight');
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    if (!isTouchResizing) {
+      if (touchTimer !== null) {
+        clearTimeout(touchTimer);
+        touchTimer = null;
+      }
+      return;
+    }
+
+    event.preventDefault();
+    const touch = event.touches[0];
+    const diff = touch.pageX - startX;
+    width = Math.max(200, Math.min(600, startWidth + diff));
+  }
+
+  function handleTouchEnd(event: TouchEvent) {
+    if (touchTimer !== null) {
+      clearTimeout(touchTimer);
+      touchTimer = null;
+    }
+    
+    if (isTouchResizing) {
+      isTouchResizing = false;
+    }
+
+    const handle = event.target as HTMLElement;
+    handle.classList.remove('touch-active', 'touch-highlight');
+  }
+
   function startResize(event: MouseEvent) {
     if (isCollapsed) return;
     
@@ -222,9 +270,23 @@
   <div 
     class="resize-handle"
     on:mousedown={startResize}
+    on:touchstart|preventDefault={handleTouchStart}
+    on:touchmove|preventDefault={handleTouchMove}
+    on:touchend|preventDefault={handleTouchEnd}
     class:resizing={isResizing}
+    class:touch-resizing={isTouchResizing}
     class:hidden={isCollapsed}
-  ></div>
+  >
+    <div class="resize-indicator">
+      <div class="resize-line"></div>
+      <div class="resize-dots">
+        <div class="resize-dot"></div>
+        <div class="resize-dot"></div>
+        <div class="resize-dot"></div>
+      </div>
+      <div class="resize-line"></div>
+    </div>
+  </div>
 </div>
 
 {#if contextMenu.visible}
@@ -451,20 +513,71 @@
   .resize-handle {
     position: absolute;
     top: 0;
-    right: -3px;
-    width: 6px;
+    right: -12px;
+    width: 24px;
     height: 100%;
     cursor: col-resize;
     background: transparent;
+    touch-action: none;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .resize-handle:hover,
-  .resize-handle.resizing {
-    background: var(--vscode-button-background);
+  .resize-handle.resizing,
+  .resize-handle.touch-resizing,
+  .resize-handle.touch-highlight {
+    background: rgba(30, 102, 174, 0.15);
   }
 
   .resize-handle.hidden {
     display: none;
+  }
+
+  .resize-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .resize-line {
+    flex: 1;
+    width: 1px;
+    background: var(--vscode-foreground);
+    opacity: 0.3;
+  }
+
+  .resize-dots {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 0;
+  }
+
+  .resize-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--vscode-foreground);
+    opacity: 0.5;
+  }
+
+  .resize-handle:hover .resize-indicator,
+  .resize-handle.touch-active .resize-indicator,
+  .resize-handle.touch-highlight .resize-indicator,
+  .resize-handle.resizing .resize-indicator {
+    opacity: 1;
+  }
+
+  .touch-active {
+    background: rgba(30, 102, 174, 0.3) !important;
   }
 
   .context-menu {

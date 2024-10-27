@@ -24,11 +24,14 @@
   let activeTab = -1;
   let tabs: TabData[] = [];
   let isResizing = false;
+  let isTouchResizing = false;
   let startY: number;
+  let startHeight: number;
   let editorHeight = '60%';
   let isLoading = true;
   let loadingError: string | null = null;
   let loadingProgress: string | null = null;
+  let touchTimer: number | null = null;
 
   onMount(async () => {
     try {
@@ -126,6 +129,54 @@
     return `Showing [${tab.results.length}] rows`;
   }
 
+  function handleTouchStart(event: TouchEvent) {
+    const touch = event.touches[0];
+    touchTimer = window.setTimeout(() => {
+      isTouchResizing = true;
+      startY = touch.pageY;
+      startHeight = parseFloat(editorHeight);
+      
+      const handle = event.target as HTMLElement;
+      handle.classList.add('touch-active');
+    }, 1000);
+
+    const handle = event.target as HTMLElement;
+    handle.classList.add('touch-highlight');
+  }
+
+  function handleTouchMove(event: TouchEvent) {
+    if (!isTouchResizing) {
+      if (touchTimer !== null) {
+        clearTimeout(touchTimer);
+        touchTimer = null;
+      }
+      return;
+    }
+
+    event.preventDefault();
+    const touch = event.touches[0];
+    const container = document.querySelector('.tab-content') as HTMLElement;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const percentage = ((touch.pageY - containerRect.top) / containerRect.height) * 100;
+    editorHeight = Math.max(20, Math.min(80, percentage)) + '%';
+  }
+
+  function handleTouchEnd(event: TouchEvent) {
+    if (touchTimer !== null) {
+      clearTimeout(touchTimer);
+      touchTimer = null;
+    }
+    
+    if (isTouchResizing) {
+      isTouchResizing = false;
+    }
+
+    const handle = event.target as HTMLElement;
+    handle.classList.remove('touch-active', 'touch-highlight');
+  }
+
   function startResize(event: MouseEvent) {
     isResizing = true;
     startY = event.clientY;
@@ -205,8 +256,22 @@
           <div 
             class="resize-handle"
             on:mousedown={startResize}
+            on:touchstart|preventDefault={handleTouchStart}
+            on:touchmove|preventDefault={handleTouchMove}
+            on:touchend|preventDefault={handleTouchEnd}
             class:resizing={isResizing}
-          ></div>
+            class:touch-resizing={isTouchResizing}
+          >
+            <div class="resize-indicator">
+              <div class="resize-line"></div>
+              <div class="resize-dots">
+                <div class="resize-dot"></div>
+                <div class="resize-dot"></div>
+                <div class="resize-dot"></div>
+              </div>
+              <div class="resize-line"></div>
+            </div>
+          </div>
           
           <div class="results-section">
             <ResultsTable
@@ -324,17 +389,67 @@
   }
 
   .resize-handle {
-    height: 4px;
+    height: 24px;
     background: transparent;
     cursor: row-resize;
-    transition: background-color 0.2s;
     position: relative;
-    margin: 0.25rem 0;
+    margin: 0;
+    touch-action: none;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .resize-handle:hover,
-  .resize-handle.resizing {
-    background: var(--vscode-button-background);
+  .resize-handle.resizing,
+  .resize-handle.touch-resizing,
+  .resize-handle.touch-highlight {
+    background: rgba(30, 102, 174, 0.15);
+  }
+
+  .resize-indicator {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    opacity: 0;
+    transition: opacity 0.2s;
+    padding: 0 12px;
+  }
+
+  .resize-line {
+    flex: 1;
+    height: 1px;
+    background: var(--vscode-foreground);
+    opacity: 0.3;
+  }
+
+  .resize-dots {
+    display: flex;
+    gap: 3px;
+    padding: 0 6px;
+  }
+
+  .resize-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--vscode-foreground);
+    opacity: 0.5;
+  }
+
+  .resize-handle:hover .resize-indicator,
+  .resize-handle.touch-active .resize-indicator,
+  .resize-handle.touch-highlight .resize-indicator,
+  .resize-handle.resizing .resize-indicator {
+    opacity: 1;
+  }
+
+  .touch-active {
+    background: rgba(30, 102, 174, 0.3) !important;
   }
 
   .add-tab {
