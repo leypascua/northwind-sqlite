@@ -2,8 +2,10 @@
   import { onMount, onDestroy } from 'svelte';
   import { EditorView, basicSetup } from 'codemirror';
   import { sql } from '@codemirror/lang-sql';
+  import { sqlEditorTheme } from './utils/codemirror/theme';
+  import { keymap } from '@codemirror/view';
+  import { indentWithTab } from '@codemirror/commands';
   import { autocompletion } from '@codemirror/autocomplete';
-  import { getDatabaseSchema } from '../services/database';
 
   const props = $props<{
     query: string;
@@ -17,46 +19,21 @@
   let editorContainer: HTMLDivElement;
   let editor: EditorView;
 
-  const sqlCompletions = (context: any) => {
-    let word = context.matchBefore(/\w*/);
-    if (!word) return null;
+  // SQL Keywords for autocompletion
+  const sqlKeywords = [
+    'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING',
+    'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'OUTER JOIN',   
+    'AND', 'OR', 'NOT', 'NULL', 'IS NULL', 'IS NOT NULL',
+    'ASC', 'DESC', 'DISTINCT', 'BETWEEN', 'IN', 'LIKE',
+    'COUNT', 'SUM', 'AVG', 'MIN', 'MAX',
+    'UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT',
+    'LIMIT', 'OFFSET', 'TOP'
+  ];
 
-    let suggestions: any[] = [];
-
-    const keywords = [
-      'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'INSERT', 'UPDATE', 'DELETE',
-      'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'GROUP BY', 'ORDER BY',
-      'HAVING', 'LIMIT', 'OFFSET', 'AS', 'ON', 'IN', 'BETWEEN', 'LIKE'
-    ];
-
-    suggestions.push(...keywords.map(keyword => ({
-      label: keyword,
-      type: 'keyword',
-      info: 'SQL Keyword'
-    })));
-
-    const schema = getDatabaseSchema();
-    schema.tables.forEach(table => {
-      suggestions.push({
-        label: table.name,
-        type: 'class',
-        info: 'Table'
-      });
-
-      table.columns.forEach(column => {
-        suggestions.push({
-          label: column.name,
-          type: 'property',
-          info: `${table.name}.${column.name} (${column.type})`
-        });
-      });
-    });
-
-    return {
-      from: word.from,
-      options: suggestions
-    };
-  };
+  const sqlCompletions = sqlKeywords.map(keyword => ({
+    label: keyword,
+    type: 'keyword'
+  }));
 
   onMount(() => {
     editor = new EditorView({
@@ -64,7 +41,23 @@
       extensions: [
         basicSetup,
         sql(),
-        autocompletion({ override: [sqlCompletions] }),
+        sqlEditorTheme,
+        keymap.of([indentWithTab]),
+        autocompletion({
+          override: [
+            (context) => {
+              let word = context.matchBefore(/\w*/);
+              if (!word) return null;
+              
+              return {
+                from: word.from,
+                options: sqlCompletions.filter(completion =>
+                  completion.label.toLowerCase().startsWith(word?.text.toLowerCase() || '')
+                )
+              };
+            }
+          ]
+        }),
         EditorView.updateListener.of(update => {
           if (update.docChanged) {
             const newValue = update.state.doc.toString();
@@ -72,104 +65,17 @@
               props.onQueryChange(newValue);
             }
           }
-        }),
-        EditorView.theme({
-          '&': { height: '100%' },
-          '.cm-scroller': { overflow: 'auto' },
-          '.cm-gutters': { 
-            backgroundColor: '#1e1e1e',
-            color: '#858585',
-            border: 'none'
-          },
-          '.cm-activeLineGutter' : {
-            backgroundColor: '#1e1e1e',
-            color: '#eeeeee'
-          }, 
-          '.cm-lineNumbers': {
-            color: '#858585'
-          },
-          '.cm-lineNumbers .cm-activeLineNumber': {
-            backgroundColor: '#1e1e1e',
-            color: '#c6c6c6'
-          },
-          '.cm-content': {
-            color: '#d4d4d4',
-            padding: '0'
-          },
-          '.cm-line': {
-            padding: '0 4px'
-          },
-          // VS Code-like syntax highlighting colors
-          '.cm-keyword': { color: '#569cd6' },         // blue for keywords
-          '.cm-operator': { color: '#d4d4d4' },        // white for operators
-          '.cm-number': { color: '#b5cea8' },          // light green for numbers
-          '.cm-string': { color: '#ce9178' },          // orange for strings
-          '.cm-comment': { color: '#6a9955' },         // green for comments
-          '.cm-function': { color: '#dcdcaa' },        // yellow for functions
-          '.cm-variable': { color: '#9cdcfe' },        // light blue for variables
-          '.cm-punctuation': { color: '#d4d4d4' },     // white for punctuation
-          '.cm-cursor': { 
-            borderLeftColor: '#fff',
-            borderLeftWidth: '2px'
-          },
-          '.cm-activeLine': { 
-            backgroundColor: '#1e1e1e'
-          },
-          "&.cm-focused .cm-selectionBackground, ::selection": {
-            backgroundColor: '#5b5b5b'
-          },
-          
-          // SQL specific tokens
-          '.cm-atom': { color: '#569cd6' },           // blue for atoms/constants
-          '.cm-builtin': { color: '#dcdcaa' },        // yellow for built-in functions
-          '.cm-tableName': { color: '#4ec9b0' },      // teal for table names
-          '.cm-columnName': { color: '#9cdcfe' },     // light blue for column names
-          '.cm-operator.cm-compareOperator': { color: '#d4d4d4' },
-          '.cm-operator.cm-logicOperator': { color: '#569cd6' },
-          '.cm-star': { color: '#d4d4d4' },
-          // Completion tooltip styles
-          '.cm-tooltip': {
-            backgroundColor: '#252526',
-            border: '1px solid #454545',
-            borderRadius: '3px'
-          },
-          '.cm-tooltip.cm-tooltip-autocomplete': {
-            '& > ul': {
-              maxHeight: '300px',
-              fontFamily: "'Segoe UI', system-ui, sans-serif",
-              fontSize: '13px'
-            },
-            '& > ul > li': {
-              padding: '4px 8px'
-            },
-            '& > ul > li[aria-selected]': {
-              backgroundColor: '#04395e',
-              color: '#ffffff'
-            }
-          },
-          '.cm-completionLabel': {
-            color: '#d4d4d4'
-          },
-          '.cm-completionDetail': {
-            color: '#9cdcfe',
-            marginLeft: '8px',
-            fontSize: '12px'
-          },
-          '.cm-completionMatchedText': {
-            textDecoration: 'none',
-            color: '#18a3ff'
-          },
-          '.cm-completionIcon': {
-            marginRight: '8px',
-            '&[class*="keyword"]': { color: '#569cd6' },
-            '&[class*="class"]': { color: '#4ec9b0' },
-            '&[class*="property"]': { color: '#9cdcfe' },
-            '&[class*="method"]': { color: '#dcdcaa' },
-            '&[class*="function"]': { color: '#dcdcaa' }
-          }
         })
       ],
       parent: editorContainer
+    });
+
+    // Handle Ctrl+Enter or Cmd+Enter to run query
+    editor.dom.addEventListener('keydown', (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        props.onRun();
+      }
     });
   });
 
@@ -194,6 +100,7 @@
       <i class="fas fa-play"></i>
       Run
     </button>
+    <div class="shortcut-hint">Execute the query by pressing [Run]</div>
   </div>
   
   <div class="editor" bind:this={editorContainer}></div>
@@ -208,14 +115,15 @@
     border-radius: 2px;
     overflow: hidden;
     min-height: 0;
-    background: var(--vscode-editor-background);
   }
 
   .toolbar {
     padding: 0.5rem;
     border-bottom: 1px solid var(--vscode-border);
-    background: var(--vscode-editor-background);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
   }
 
   .run-btn {
@@ -237,24 +145,14 @@
     font-size: 0.75rem;
   }
 
+  .shortcut-hint {
+    color: #808080;
+    font-size: 0.75rem;
+  }
+
   .editor {
     flex: 1;
     height: 100%;
     min-height: 0;
-  }
-
-  :global(.cm-editor) {
-    height: 100%;
-    background: var(--vscode-editor-background) !important;
-  }
-
-  :global(.cm-editor .cm-scroller) {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-
-  :global(.cm-editor.error-line) {
-    background-color: #5a1d1d;
   }
 </style>
