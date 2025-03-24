@@ -18,17 +18,17 @@ export async function createSqliteDb(): Promise<Database> {
   try {
     // Load SQL.js
     const SQL = await initSqlJs({
-      locateFile: (file) => `https://sql.js.org/dist/${file}`,
+      locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
     });
+
+    // signal that SQL.js is loaded
     state.sqlJsLoaded = true;
 
     // Create database instance
     db = new SQL.Database();
     state.databaseInitialized = true;
-
     return db;
   } catch (error) {
-    state.error = `SQL.js initialization failed: ${(error as Error).message}`;
     throw error;
   }
 }
